@@ -373,8 +373,8 @@ class SurveyqqCommand(BackendCommand):
         return parser
 
 if __name__ == "__main__":
-    survey = Surveyqq(surveyid=9241673, appid="tpidCwphy8V0",
-                 api_token="Bcg3kgoFGAHubZAEzhExC82zYr1czwQjS.gTHCfuexqNVrDgvbZYYFwhLB19Pkr8hBh0ZSOHhX9OYTY1ShcUAvwBh8L58VrFrS", 
+    survey = Surveyqq(surveyid=xxx, appid="xx",
+                 api_token="xxx", 
                  max_items=4,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=3)]
