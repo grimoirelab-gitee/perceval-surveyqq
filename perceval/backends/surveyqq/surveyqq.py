@@ -42,6 +42,7 @@ CATEGORY_PULL_REQUEST = "pull_request"
 
 
 SURVEYQQ_URL = "https://open.wj.qq.com/api/surveys"
+GITEE_API_URL = "https://gitee.com/api/v5/repos"
 
 # Range before sleeping until rate limit reset
 MIN_RATE_LIMIT = 10
@@ -137,9 +138,9 @@ class Surveyqq(Backend):
         offset = kwargs['offset']
 
         if category == CATEGORY_ISSUE:
-            items = self.__fetch_issues(offset)
+            items = self.__fetch_issues_survey(offset)
         else:
-            items = self.__fetch_issues(offset)
+            items = self.__fetch_issues_survey(offset)
 
         return items
 
@@ -199,14 +200,21 @@ class Surveyqq(Backend):
                            self.appid, self.api_token,self.max_retries, self.max_items,
                            self.archive, from_archive, self.ssl_verify)
 
-    def __fetch_issues(self, offset):
+    def __fetch_issues_survey(self, offset):
         """Fetch the issues"""
+        #fetch survey from each page.
+        issues__survey_groups = self.client.fetch_items(offset=offset)
 
-        issues_groups = self.client.fetch_items(offset=offset)
+        for issue_surveys in issues__survey_groups:
+            for issue_survey in issue_surveys:
+                issue_survey["issue_data"] = self._get_issue(issue_survey["answer"][0]["questions"][1]["text"])
+                yield issue_survey
 
-        for issues in issues_groups:
-            for issue in issues:
-                yield issue
+    def _get_issue(self, issue_link):
+
+        issue_surfix = '/'.join(issue_link.split('/')[-4:])
+        issue_raw = self.client.issue(issue_surfix)
+        return json.loads(issue_raw)
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
     """Client for retrieving information from Gitee API
@@ -253,7 +261,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
 
 
 
-    def issues(self, offset=None):
+    def issue(self, issue_surfix=None):
         """Fetch the issues from the repository.
 
         The method retrieves, from a Gitee repository, the issues
@@ -263,15 +271,9 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
 
         :returns: a generator of issues
         """
-        payload = {
-            'appid': self.appid,
-            'access_token': self.api_token,
-            'last_answer_id': offset,
-            'per_page': self.max_items
-        }
-
-        path = urijoin("issues")
-        return self.fetch_items(path, payload)
+        path = urijoin(GITEE_API_URL, issue_surfix)
+        r = self.fetch(path)
+        return r.text
 
     def fetch(self, url, payload=None, headers=None, method=HttpClient.GET, stream=False, auth=None):
         """Fetch the data from a given URL.
@@ -356,7 +358,7 @@ class SurveyqqCommand(BackendCommand):
         action.required = True
 
         # Gitee options
-        group = parser.parser.add_argument_group('Gitee arguments')
+        group = parser.parser.add_argument_group('Surveyqq arguments')
         group.add_argument('--surveyid', dest='surveyid',
                            help="surveyid")
 
@@ -374,9 +376,9 @@ class SurveyqqCommand(BackendCommand):
 
 if __name__ == "__main__":
     survey = Surveyqq(surveyid=xxx, appid="xx",
-                 api_token="xxx", 
+                 api_token="xxx",
                  max_items=4,
                  tag=None, archive=None, ssl_verify=True)
-    answers = [answer for answer in survey.fetch(offset=3)]
+    answers = [answer for answer in survey.fetch(offset=0)]
     issue1 = answers[0]
 
