@@ -89,13 +89,16 @@ class Surveyqq(Backend):
         ['review_comments_data', 'user_data']
     ]
 
-    def __init__(self, surveyid=None, appid=None,
+    def __init__(self, owner=None, repository=None,
+                 surveyid=None, appid=None,
                  api_token=None, max_retries=MAX_RETRIES, 
                  max_items=MAX_CATEGORY_ITEMS_PER_PAGE,
                  tag=None, archive=None, ssl_verify=True):
         origin = urijoin(SURVEYQQ_URL, surveyid, "answers")
         super().__init__(origin, tag=tag, archive=archive, ssl_verify=ssl_verify)
 
+        self.owner = owner
+        self.repository = repository
         self.surveyid = surveyid
         self.appid = appid
         self.api_token = api_token
@@ -196,7 +199,7 @@ class Surveyqq(Backend):
     def _init_client(self, from_archive=False):
         """Init client"""
 
-        return SurveyqqClient(self.base_url,
+        return SurveyqqClient(self.owner, self.repository, self.base_url,
                            self.appid, self.api_token,self.max_retries, self.max_items,
                            self.archive, from_archive, self.ssl_verify)
 
@@ -211,7 +214,6 @@ class Surveyqq(Backend):
                 yield issue_survey
 
     def _get_issue(self, issue_link):
-
         issue_surfix = '/'.join(issue_link.split('/')[-4:])
         issue_raw = self.client.issue(issue_surfix)
         return json.loads(issue_raw)
@@ -243,11 +245,12 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
     _users = {}  # users cache
     _users_orgs = {}  # users orgs cache
 
-    def __init__(self, base_url=None, appid=None, 
+    def __init__(self, owner, repository, base_url=None, appid=None,
                  api_token=None,  max_retries=MAX_RETRIES,
                  max_items=MAX_CATEGORY_ITEMS_PER_PAGE, archive=None, from_archive=False, ssl_verify=True):
         self.max_items = max_items
-
+        self.owner = owner
+        self.repository = repository
         self.base_url = base_url
         self.appid = appid
         self.api_token = api_token
@@ -372,13 +375,21 @@ class SurveyqqCommand(BackendCommand):
         group.add_argument('--max-retries', dest='max_retries',
                            default=MAX_RETRIES, type=int,
                            help="number of API call retries")
+
+        # Positional arguments
+        parser.parser.add_argument('owner',
+                                   help="Gitee owner")
+        parser.parser.add_argument('repository',
+                                   help="Gitee repository")
         return parser
 
 if __name__ == "__main__":
-    survey = Surveyqq(surveyid=xxx, appid="xx",
+    survey = Surveyqq(owner="xxx", repository="xxx", surveyid=xxx, appid="xx",
                  api_token="xxx",
                  max_items=4,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=0)]
     issue1 = answers[0]
+    with open('data.json', 'w', encoding='utf-8') as f:
+        json.dump(issue1, f, ensure_ascii=False, indent=4)
 
