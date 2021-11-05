@@ -44,6 +44,7 @@ CATEGORY_PULL_REQUEST = "pull_request"
 SURVEYQQ_URL = "https://open.wj.qq.com/api/surveys"
 GITEE_API_URL = "https://gitee.com/api/v5/repos"
 
+
 # Range before sleeping until rate limit reset
 MIN_RATE_LIMIT = 10
 MAX_RATE_LIMIT = 500
@@ -211,12 +212,38 @@ class Surveyqq(Backend):
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
                 issue_survey["issue_data"] = self._get_issue(issue_survey["answer"][0]["questions"][1]["text"])
+                issue_survey["comment_data"] = self.__get_issue_comments(issue_survey["answer"][0]["questions"][1]["text"])
                 yield issue_survey
 
     def _get_issue(self, issue_link):
-        issue_surfix = '/'.join(issue_link.split('/')[-4:])
-        issue_raw = self.client.issue(issue_surfix)
-        return json.loads(issue_raw)
+        issue_link_split = issue_link.split('/')
+        if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
+            issue_surfix = '/'.join(issue_link_split[-4:])
+            issue_raw = self.client.issue(issue_surfix)
+            return json.loads(issue_raw)
+        else:
+            return "Invalid Issue Link"
+    
+    def __get_issue_comments(self, issue_link):
+        """Get issue comments"""
+        issue_link_split = issue_link.split('/')
+        if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
+            issue_surfix = '/'.join(issue_link_split[-4:])
+            issue_comment_raw = self.client.issue_comment(issue_surfix)
+            return json.loads(issue_comment_raw)
+        else:
+            return "Invalid Issue Link"
+        # comments = []
+        # group_comments = self.client.issue_comments(issue_number)
+
+        # for raw_comments in group_comments:
+
+        #     for comment in json.loads(raw_comments):
+        #         comment_id = comment.get('id')
+        #         comment['user_data'] = self.__get_user(comment['user']['login'])
+        #         comments.append(comment)
+
+        # return comments
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
     """Client for retrieving information from Gitee API
@@ -272,11 +299,24 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
 
         :param from_date: obtain issues updated since this date
 
+
         :returns: a generator of issues
         """
         path = urijoin(GITEE_API_URL, issue_surfix)
         r = self.fetch(path)
         return r.text
+    
+    def issue_comment(self, issue_surfix=None):
+        path = urijoin(GITEE_API_URL, issue_surfix, "comments")
+        payload = {
+            'page':100,
+            'per_page': PER_PAGE,
+            'order': 'asc',
+        }
+        r = self.fetch(path,payload)
+        return r.text
+
+
 
     def fetch(self, url, payload=None, headers=None, method=HttpClient.GET, stream=False, auth=None):
         """Fetch the data from a given URL.
