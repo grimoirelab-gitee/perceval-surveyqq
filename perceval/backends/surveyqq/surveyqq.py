@@ -219,8 +219,15 @@ class Surveyqq(Backend):
         issue_link_split = issue_link.split('/')
         if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
             issue_surfix = '/'.join(issue_link_split[-4:])
-            issue_raw = self.client.issue(issue_surfix)
-            return json.loads(issue_raw)
+            try:
+                issue_raw = self.client.issue(issue_surfix)
+                return json.loads(issue_raw)
+            except requests.exceptions.HTTPError as error:
+                # 404 not found is wrongly received from gitee API service
+                if error.response.status_code == 404:
+                    logger.error("Can't get message about Issue: %s", issue_link)
+                else:
+                    raise error
         else:
             return "Invalid Issue Link"
     
@@ -229,21 +236,18 @@ class Surveyqq(Backend):
         issue_link_split = issue_link.split('/')
         if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
             issue_surfix = '/'.join(issue_link_split[-4:])
-            issue_comment_raw = self.client.issue_comment(issue_surfix)
-            return json.loads(issue_comment_raw)
+            try:
+                issue_comment_raw = self.client.issue_comment(issue_surfix)
+                return json.loads(issue_comment_raw)
+            except requests.exceptions.HTTPError as error:
+                # 404 not found is wrongly received from gitee API service
+                if error.response.status_code == 404:
+                    logger.error("Can't get comment  about Issue: %s", issue_link)
+                else:
+                    raise error
         else:
             return "Invalid Issue Link"
-        # comments = []
-        # group_comments = self.client.issue_comments(issue_number)
-
-        # for raw_comments in group_comments:
-
-        #     for comment in json.loads(raw_comments):
-        #         comment_id = comment.get('id')
-        #         comment['user_data'] = self.__get_user(comment['user']['login'])
-        #         comments.append(comment)
-
-        # return comments
+      
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
     """Client for retrieving information from Gitee API
@@ -259,6 +263,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
          it will be reset
     :param sleep_time: time to sleep in case
         of connection problems
+        
     :param max_retries: number of max retries to a data source
         before raising a RetryError exception
     :param max_items: max number of category items (e.g., issues,
@@ -309,7 +314,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
     def issue_comment(self, issue_surfix=None):
         path = urijoin(GITEE_API_URL, issue_surfix, "comments")
         payload = {
-            'page':100,
+            'page':1,
             'per_page': PER_PAGE,
             'order': 'asc',
         }
