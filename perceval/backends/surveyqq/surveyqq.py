@@ -211,42 +211,48 @@ class Surveyqq(Backend):
 
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
-                issue_survey["issue_data"] = self._get_issue(issue_survey["answer"][0]["questions"][1]["text"])
-                issue_survey["comment_data"] = self.__get_issue_comments(issue_survey["answer"][0]["questions"][1]["text"])
+                issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
+                if len(issue_link_split) ==7 and issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
+                    issue_survey["issue_data"] = self._get_issue(issue_link_split)
+                    issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
+                else:
+                    issue_survey["issue_data"] = "Invalid Issue Link"
+                    issue_survey["comment_data"] = "Invalid Issue Link"
                 yield issue_survey
 
-    def _get_issue(self, issue_link):
-        issue_link_split = issue_link.split('/')
-        if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
-            issue_surfix = '/'.join(issue_link_split[-4:])
-            try:
-                issue_raw = self.client.issue(issue_surfix)
-                return json.loads(issue_raw)
-            except requests.exceptions.HTTPError as error:
-                # 404 not found is wrongly received from gitee API service
-                if error.response.status_code == 404:
-                    logger.error("Can't get message about Issue: %s", issue_link)
-                else:
-                    raise error
-        else:
-            return "Invalid Issue Link"
-    
-    def __get_issue_comments(self, issue_link):
+    def _get_issue(self, issue_link_split):
+       
+        issue_surfix = '/'.join(issue_link_split[-4:])
+        try:
+            issue_raw = self.client.issue(issue_surfix)
+            return json.loads(issue_raw)
+        except Exception as e:
+            print(e)
+        # except requests.exceptions.HTTPError as error:
+            # logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
+            # 404 not found is wrongly received from gitee API service
+            # if error.response.status_code == 404:
+            #     logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
+            # else:
+            #     raise error
+      
+    def __get_issue_comments(self, issue_link_split):
         """Get issue comments"""
-        issue_link_split = issue_link.split('/')
-        if issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
-            issue_surfix = '/'.join(issue_link_split[-4:])
-            try:
-                issue_comment_raw = self.client.issue_comment(issue_surfix)
-                return json.loads(issue_comment_raw)
-            except requests.exceptions.HTTPError as error:
-                # 404 not found is wrongly received from gitee API service
-                if error.response.status_code == 404:
-                    logger.error("Can't get comment  about Issue: %s", issue_link)
-                else:
-                    raise error
-        else:
-            return "Invalid Issue Link"
+       
+        issue_surfix = '/'.join(issue_link_split[-4:])
+        try:
+            issue_comment_raw = self.client.issue_comment(issue_surfix)
+            return json.loads(issue_comment_raw)
+        except Exception as e:
+            print(e)
+        # except requests.exceptions.HTTPError as error:
+        #     # 404 not found is wrongly received from gitee API service
+        #      # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+        #     if error.response.status_code == 401:
+        #         logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+        #     else:
+        #         raise error
+        
       
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
@@ -429,9 +435,9 @@ class SurveyqqCommand(BackendCommand):
         return parser
 
 if __name__ == "__main__":
-    survey = Surveyqq(owner="xxx", repository="xxx", surveyid=xxx, appid="xx",
-                 api_token="xxx",
-                 max_items=4,
+    survey = Surveyqq(owner="mindspore", repository="mindspore", surveyid=9246673, appid="tpidCwphy8V0",
+                 api_token="Bcg3kgoFGAHubZAEzhExC82zYr1czwQjS.zphU27noLsKUSb2q9eb1ZqD4GaloUpg8YaYBWkpdIiSN5ZeL2GXdclJPA3bFKDqx",
+                 max_items=5,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=0)]
     issue1 = answers[0]
