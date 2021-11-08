@@ -433,12 +433,12 @@ class SurveyqqCommand(BackendCommand):
         return parser
 
 if __name__ == "__main__":
-    survey = Surveyqq(owner="mindspore", repository="mindspore", surveyid=9246673, appid="tpidCwphy8V0",
-                 api_token="Bcg3kgoFGAHubZAEzhExC82zYr1czwQjS.22Eh7uePHrf9ExQSfVhfd4GA04Wd80BKZBvsvuSxidLAbibmzHskivT15gq5p50Z",
+    survey = Surveyqq(owner="xxx", repository= "xxx", surveyid=xxx, appid="xxx",
+                 api_token="xxx",
                  max_items=5,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=0)]
     issue1 = answers[0]
     with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(issue1, f, ensure_ascii=False, indent=4)
+        json.dump(answers, f, ensure_ascii=False, indent=4)
 
