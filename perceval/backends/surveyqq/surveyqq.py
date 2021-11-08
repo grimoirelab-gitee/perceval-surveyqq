@@ -44,6 +44,7 @@ CATEGORY_PULL_REQUEST = "pull_request"
 SURVEYQQ_URL = "https://open.wj.qq.com/api/surveys"
 GITEE_API_URL = "https://gitee.com/api/v5/repos"
 
+
 # Range before sleeping until rate limit reset
 MIN_RATE_LIMIT = 10
 MAX_RATE_LIMIT = 500
@@ -210,13 +211,47 @@ class Surveyqq(Backend):
 
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
-                issue_survey["issue_data"] = self._get_issue(issue_survey["answer"][0]["questions"][1]["text"])
+                issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
+                if len(issue_link_split) ==7 and issue_link_split[-4] == self.owner and issue_link_split[-3] in self.repository:
+                    issue_survey["issue_data"] = self._get_issue(issue_link_split)
+                    issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
+                else:
+                    issue_survey["issue_data"] = "Invalid Issue Link"
+                    issue_survey["comment_data"] = "Invalid Issue Link"
                 yield issue_survey
 
-    def _get_issue(self, issue_link):
-        issue_surfix = '/'.join(issue_link.split('/')[-4:])
-        issue_raw = self.client.issue(issue_surfix)
-        return json.loads(issue_raw)
+    def _get_issue(self, issue_link_split):
+       
+        issue_surfix = '/'.join(issue_link_split[-4:])
+        try:
+            issue_raw = self.client.issue(issue_surfix)
+            return json.loads(issue_raw)
+       
+        except requests.exceptions.HTTPError as error:
+            if error.response.status_code == 404:
+                logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
+                return "Can't get message about Issue"
+            else:
+                raise error
+      
+    def __get_issue_comments(self, issue_link_split):
+        """Get issue comments"""
+       
+        issue_surfix = '/'.join(issue_link_split[-4:])
+        try:
+            issue_comment_raw = self.client.issue_comment(issue_surfix)
+            return json.loads(issue_comment_raw)
+       
+        except requests.exceptions.HTTPError as error:
+            # 404 not found is wrongly received from gitee API service
+             # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+            if error.response.status_code == 401:
+                logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+                return "Can't get comment message about Issue"
+            else:
+                raise error
+        
+      
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
     """Client for retrieving information from Gitee API
@@ -232,6 +267,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
          it will be reset
     :param sleep_time: time to sleep in case
         of connection problems
+        
     :param max_retries: number of max retries to a data source
         before raising a RetryError exception
     :param max_items: max number of category items (e.g., issues,
@@ -272,11 +308,24 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
 
         :param from_date: obtain issues updated since this date
 
+
         :returns: a generator of issues
         """
         path = urijoin(GITEE_API_URL, issue_surfix)
         r = self.fetch(path)
         return r.text
+    
+    def issue_comment(self, issue_surfix=None):
+        path = urijoin(GITEE_API_URL, issue_surfix, "comments")
+        payload = {
+            'page':1,
+            'per_page': PER_PAGE,
+            'order': 'asc',
+        }
+        r = self.fetch(path,payload)
+        return r.text
+
+
 
     def fetch(self, url, payload=None, headers=None, method=HttpClient.GET, stream=False, auth=None):
         """Fetch the data from a given URL.
@@ -384,12 +433,12 @@ class SurveyqqCommand(BackendCommand):
         return parser
 
 if __name__ == "__main__":
-    survey = Surveyqq(owner="xxx", repository="xxx", surveyid=xxx, appid="xx",
+    survey = Surveyqq(owner="xxx", repository= "xxx", surveyid=xxx, appid="xxx",
                  api_token="xxx",
-                 max_items=4,
+                 max_items=5,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=0)]
     issue1 = answers[0]
     with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(issue1, f, ensure_ascii=False, indent=4)
+        json.dump(answers, f, ensure_ascii=False, indent=4)
 
