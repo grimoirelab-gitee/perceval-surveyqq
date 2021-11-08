@@ -212,7 +212,7 @@ class Surveyqq(Backend):
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
                 issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
-                if len(issue_link_split) ==7 and issue_link_split[-4] == self.owner and issue_link_split[-3] == self.repository:
+                if len(issue_link_split) ==7 and issue_link_split[-4] == self.owner and issue_link_split[-3] in self.repository:
                     issue_survey["issue_data"] = self._get_issue(issue_link_split)
                     issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
                 else:
@@ -226,15 +226,13 @@ class Surveyqq(Backend):
         try:
             issue_raw = self.client.issue(issue_surfix)
             return json.loads(issue_raw)
-        except Exception as e:
-            print(e)
-        # except requests.exceptions.HTTPError as error:
-            # logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
-            # 404 not found is wrongly received from gitee API service
-            # if error.response.status_code == 404:
-            #     logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
-            # else:
-            #     raise error
+       
+        except requests.exceptions.HTTPError as error:
+            if error.response.status_code == 404:
+                logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
+                return "Can't get message about Issue"
+            else:
+                raise error
       
     def __get_issue_comments(self, issue_link_split):
         """Get issue comments"""
@@ -243,15 +241,15 @@ class Surveyqq(Backend):
         try:
             issue_comment_raw = self.client.issue_comment(issue_surfix)
             return json.loads(issue_comment_raw)
-        except Exception as e:
-            print(e)
-        # except requests.exceptions.HTTPError as error:
-        #     # 404 not found is wrongly received from gitee API service
-        #      # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-        #     if error.response.status_code == 401:
-        #         logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-        #     else:
-        #         raise error
+       
+        except requests.exceptions.HTTPError as error:
+            # 404 not found is wrongly received from gitee API service
+             # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+            if error.response.status_code == 401:
+                logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+                return "Can't get comment message about Issue"
+            else:
+                raise error
         
       
 
@@ -436,7 +434,7 @@ class SurveyqqCommand(BackendCommand):
 
 if __name__ == "__main__":
     survey = Surveyqq(owner="mindspore", repository="mindspore", surveyid=9246673, appid="tpidCwphy8V0",
-                 api_token="Bcg3kgoFGAHubZAEzhExC82zYr1czwQjS.zphU27noLsKUSb2q9eb1ZqD4GaloUpg8YaYBWkpdIiSN5ZeL2GXdclJPA3bFKDqx",
+                 api_token="Bcg3kgoFGAHubZAEzhExC82zYr1czwQjS.22Eh7uePHrf9ExQSfVhfd4GA04Wd80BKZBvsvuSxidLAbibmzHskivT15gq5p50Z",
                  max_items=5,
                  tag=None, archive=None, ssl_verify=True)
     answers = [answer for answer in survey.fetch(offset=0)]
