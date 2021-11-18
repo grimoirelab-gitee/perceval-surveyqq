@@ -58,6 +58,8 @@ PER_PAGE = 100
 # Default sleep time and retries to deal with connection/server problems
 DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
+ALL_OWNER = set()
+ALL_REPO = set()
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +207,8 @@ class Surveyqq(Backend):
                            self.archive, from_archive, self.ssl_verify)
 
     def __fetch_issues_survey(self, offset):
+        ALL_OWNER.add(self.owner)
+        ALL_REPO.add(self.repository)
         """Fetch the issues"""
         #fetch survey from each page.
         issues__survey_groups = self.client.fetch_items(offset=offset)
@@ -212,14 +216,15 @@ class Surveyqq(Backend):
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
                 issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
-                if len(issue_link_split) ==7 and issue_link_split[-4] == self.owner and issue_link_split[-3] in self.repository:
+                
+                if len(issue_link_split) ==7 and issue_link_split[-4] in ALL_OWNER and issue_link_split[-3] in ALL_REPO:
                     issue_survey["issue_data"] = self._get_issue(issue_link_split)
                     issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
                 else:
                     issue_survey["issue_data"] = "Invalid Issue Link"
                     issue_survey["comment_data"] = "Invalid Issue Link"
                 yield issue_survey
-
+        
     def _get_issue(self, issue_link_split):
        
         issue_surfix = '/'.join(issue_link_split[-4:])
@@ -432,13 +437,13 @@ class SurveyqqCommand(BackendCommand):
                                    help="Gitee repository")
         return parser
 
-if __name__ == "__main__":
-    survey = Surveyqq(owner="xxx", repository= "xxx", surveyid=xxx, appid="xxx",
-                 api_token="xxx",
-                 max_items=5,
-                 tag=None, archive=None, ssl_verify=True)
-    answers = [answer for answer in survey.fetch(offset=0)]
-    issue1 = answers[0]
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(answers, f, ensure_ascii=False, indent=4)
+# if __name__ == "__main__":
+#     survey = Surveyqq(owner="xxx", repository= "xxx", surveyid=xxx, appid="xxx",
+#                  api_token="xxx",
+#                  max_items=5,
+#                  tag=None, archive=None, ssl_verify=True)
+#     answers = [answer for answer in survey.fetch(offset=0)]
+#     issue1 = answers[0]
+#     with open('data.json', 'w', encoding='utf-8') as f:
+#         json.dump(answers, f, ensure_ascii=False, indent=4)
 
