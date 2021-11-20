@@ -30,10 +30,12 @@ from grimoirelab_toolkit.uris import urijoin
 from perceval.backend import (Backend,
                               BackendCommand,
                               BackendCommandArgumentParser,
-                              DEFAULT_SEARCH_FIELD)
+                              DEFAULT_SEARCH_FIELD,
+                              uuid)
 from perceval.client import HttpClient, RateLimitHandler
 from perceval.utils import DEFAULT_DATETIME, DEFAULT_LAST_DATETIME
 from sqlalchemy.sql.expression import true
+from perceval._version import __version__
 
 DEFAULT_OFFSET = 0
 
@@ -214,9 +216,11 @@ class Surveyqq(Backend):
         issues__survey_groups = self.client.fetch_items(offset=offset)
 
         for issue_surveys in issues__survey_groups:
+            #print(issue_surveys)
             for issue_survey in issue_surveys:
-                issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
+                issue_link_split = issue_survey["answer"][0]["questions"][2]["text"].split('/')
                 
+                # print("issue_link_split****",issue_link_split)
                 if len(issue_link_split) ==7 and issue_link_split[-4] in ALL_OWNER and issue_link_split[-3] in ALL_REPO:
                     issue_survey["issue_data"] = self._get_issue(issue_link_split)
                     issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
@@ -233,11 +237,9 @@ class Surveyqq(Backend):
             return json.loads(issue_raw)
        
         except requests.exceptions.HTTPError as error:
-            if error.response.status_code == 404:
-                logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
-                return "Can't get message about Issue"
-            else:
-                raise error
+            logger.error("Can't get message  about Issue: %s", '/'.join(issue_link_split))
+            return "Can't get message about Issue"
+          
       
     def __get_issue_comments(self, issue_link_split):
         """Get issue comments"""
@@ -248,13 +250,39 @@ class Surveyqq(Backend):
             return json.loads(issue_comment_raw)
        
         except requests.exceptions.HTTPError as error:
-            # 404 not found is wrongly received from gitee API service
-             # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-            if error.response.status_code == 401:
-                logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-                return "Can't get comment message about Issue"
-            else:
-                raise error
+            logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+            return "Can't get comment message about Issue"
+          
+    
+    def metadata(self, item, filter_classified=False):
+        """Add metadata to an item.
+
+        It adds metadata to a given item such as how and
+        when it was fetched. The contents from the original item will
+        be stored under the 'data' keyword.
+
+        :param item: an item fetched by a backend
+        :param filter_classified: sets if classified fields were filtered
+        """
+        if len(item["answer"][0]["questions"][2]["text"].split('/'))==7:
+            
+            item = {
+                'backend_name': self.__class__.__name__,
+                'backend_version': self.version,
+                'perceval_version': __version__,
+                'timestamp': datetime_utcnow().timestamp(),
+                'origin': '/'.join(item["answer"][0]["questions"][2]["text"].split('/')[:-2]),
+                'uuid': uuid(self.origin, self.metadata_id(item)),
+                'updated_on': self.metadata_updated_on(item),
+                'classified_fields_filtered': self.classified_fields if filter_classified else None,
+                'category': self.metadata_category(item),
+                'search_fields': self.search_fields(item),
+                'tag': self.tag,
+                'data': item,
+            }
+        else:
+            item = super().metadata()
+        return item
         
       
 
