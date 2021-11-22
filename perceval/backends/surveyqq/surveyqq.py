@@ -283,6 +283,9 @@ class Surveyqq(Backend):
         else:
             item = super().metadata()
         return item
+    
+    def set_origin(self,origin):
+        self._origin = origin
         
       
 
@@ -422,7 +425,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
     #         url = GITEE_REFRESH_TOKEN_URL + "?grant_type=refresh_token&refresh_token=" + self.access_token
     #         logger.info("Refresh the access_token for Gitee API")
     #         self.session.post(url, data=None, headers=None, stream=False, auth=None)
-
+    
 
 class SurveyqqCommand(BackendCommand):
     """Class to run Gitee backend from the command line."""
@@ -463,6 +466,7 @@ class SurveyqqCommand(BackendCommand):
                                    help="Gitee owner")
         parser.parser.add_argument('repository',
                                    help="Gitee repository")
+        parser.parser.add_argument('--filter-raw')
         return parser
 
 # if __name__ == "__main__":
