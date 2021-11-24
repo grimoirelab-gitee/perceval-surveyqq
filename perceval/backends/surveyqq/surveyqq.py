@@ -30,10 +30,12 @@ from grimoirelab_toolkit.uris import urijoin
 from perceval.backend import (Backend,
                               BackendCommand,
                               BackendCommandArgumentParser,
-                              DEFAULT_SEARCH_FIELD)
+                              DEFAULT_SEARCH_FIELD,
+                              uuid)
 from perceval.client import HttpClient, RateLimitHandler
 from perceval.utils import DEFAULT_DATETIME, DEFAULT_LAST_DATETIME
 from sqlalchemy.sql.expression import true
+from perceval._version import __version__
 
 DEFAULT_OFFSET = 0
 
@@ -94,7 +96,7 @@ class Surveyqq(Backend):
 
     def __init__(self, owner=None, repository=None,
                  surveyid=None, appid=None,
-                 api_token=None, max_retries=MAX_RETRIES, 
+                 api_token=None, max_retries=MAX_RETRIES,
                  max_items=MAX_CATEGORY_ITEMS_PER_PAGE,
                  tag=None, archive=None, ssl_verify=True):
         origin = urijoin(SURVEYQQ_URL, surveyid, "answers")
@@ -108,7 +110,6 @@ class Surveyqq(Backend):
         self.base_url = origin
         self.max_retries = max_retries
         self.max_items = max_items
-        
 
     def fetch(self, category=CATEGORY_ISSUE, offset=DEFAULT_OFFSET):
         """Fetch the issues/pull requests from the repository.
@@ -203,60 +204,83 @@ class Surveyqq(Backend):
         """Init client"""
 
         return SurveyqqClient(self.owner, self.repository, self.base_url,
-                           self.appid, self.api_token,self.max_retries, self.max_items,
-                           self.archive, from_archive, self.ssl_verify)
+                              self.appid, self.api_token, self.max_retries, self.max_items,
+                              self.archive, from_archive, self.ssl_verify)
 
     def __fetch_issues_survey(self, offset):
         ALL_OWNER.add(self.owner)
         ALL_REPO.add(self.repository)
         """Fetch the issues"""
-        #fetch survey from each page.
+        # fetch survey from each page.
         issues__survey_groups = self.client.fetch_items(offset=offset)
 
         for issue_surveys in issues__survey_groups:
             for issue_survey in issue_surveys:
-                issue_link_split = issue_survey["answer"][0]["questions"][1]["text"].split('/') 
-                
-                if len(issue_link_split) ==7 and issue_link_split[-4] in ALL_OWNER and issue_link_split[-3] in ALL_REPO:
+                issue_link_split = issue_survey["answer"][0]["questions"][2]["text"].split('/')
+                if len(issue_link_split) == 7 and issue_link_split[-4] in ALL_OWNER and issue_link_split[-3] in ALL_REPO:
                     issue_survey["issue_data"] = self._get_issue(issue_link_split)
                     issue_survey["comment_data"] = self.__get_issue_comments(issue_link_split)
                 else:
                     issue_survey["issue_data"] = "Invalid Issue Link"
                     issue_survey["comment_data"] = "Invalid Issue Link"
                 yield issue_survey
-        
+
     def _get_issue(self, issue_link_split):
-       
+
         issue_surfix = '/'.join(issue_link_split[-4:])
         try:
             issue_raw = self.client.issue(issue_surfix)
             return json.loads(issue_raw)
-       
+
         except requests.exceptions.HTTPError as error:
-            if error.response.status_code == 404:
-                logger.error("Can't get message about Issue: %s", '/'.join(issue_link_split))
-                return "Can't get message about Issue"
-            else:
-                raise error
-      
+            logger.error("Can't get message  about Issue: %s", '/'.join(issue_link_split))
+            return "Can't get message about Issue"
+
     def __get_issue_comments(self, issue_link_split):
         """Get issue comments"""
-       
+
         issue_surfix = '/'.join(issue_link_split[-4:])
         try:
             issue_comment_raw = self.client.issue_comment(issue_surfix)
             return json.loads(issue_comment_raw)
-       
+
         except requests.exceptions.HTTPError as error:
-            # 404 not found is wrongly received from gitee API service
-             # logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-            if error.response.status_code == 401:
-                logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
-                return "Can't get comment message about Issue"
-            else:
-                raise error
-        
-      
+            logger.error("Can't get comment  about Issue: %s", '/'.join(issue_link_split))
+            return "Can't get comment message about Issue"
+
+    def metadata(self, item, filter_classified=False):
+        """Add metadata to an item.
+
+        It adds metadata to a given item such as how and
+        when it was fetched. The contents from the original item will
+        be stored under the 'data' keyword.
+
+        :param item: an item fetched by a backend
+        :param filter_classified: sets if classified fields were filtered
+        """
+        if len(item["answer"][0]["questions"][2]["text"].split('/')) == 7:
+
+            item = {
+                'backend_name': self.__class__.__name__,
+                'backend_version': self.version,
+                'perceval_version': __version__,
+                'timestamp': datetime_utcnow().timestamp(),
+                'origin': '/'.join(item["answer"][0]["questions"][2]["text"].split('/')[:-2]),
+                'uuid': uuid(self.origin, self.metadata_id(item)),
+                'updated_on': self.metadata_updated_on(item),
+                'classified_fields_filtered': self.classified_fields if filter_classified else None,
+                'category': self.metadata_category(item),
+                'search_fields': self.search_fields(item),
+                'tag': self.tag,
+                'data': item,
+            }
+        else:
+            item = super().metadata()
+        return item
+
+    def set_origin(self, origin):
+        self._origin = origin
+
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
     """Client for retrieving information from Gitee API
@@ -272,7 +296,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
          it will be reset
     :param sleep_time: time to sleep in case
         of connection problems
-        
+
     :param max_retries: number of max retries to a data source
         before raising a RetryError exception
     :param max_items: max number of category items (e.g., issues,
@@ -287,7 +311,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
     _users_orgs = {}  # users orgs cache
 
     def __init__(self, owner, repository, base_url=None, appid=None,
-                 api_token=None,  max_retries=MAX_RETRIES,
+                 api_token=None, max_retries=MAX_RETRIES,
                  max_items=MAX_CATEGORY_ITEMS_PER_PAGE, archive=None, from_archive=False, ssl_verify=True):
         self.max_items = max_items
         self.owner = owner
@@ -303,8 +327,6 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
         # refresh the access token
         # self._refresh_access_token()
 
-
-
     def issue(self, issue_surfix=None):
         """Fetch the issues from the repository.
 
@@ -319,18 +341,16 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
         path = urijoin(GITEE_API_URL, issue_surfix)
         r = self.fetch(path)
         return r.text
-    
+
     def issue_comment(self, issue_surfix=None):
         path = urijoin(GITEE_API_URL, issue_surfix, "comments")
         payload = {
-            'page':1,
+            'page': 1,
             'per_page': PER_PAGE,
             'order': 'asc',
         }
-        r = self.fetch(path,payload)
+        r = self.fetch(path, payload)
         return r.text
-
-
 
     def fetch(self, url, payload=None, headers=None, method=HttpClient.GET, stream=False, auth=None):
         """Fetch the data from a given URL.
@@ -375,7 +395,7 @@ class SurveyqqClient(HttpClient, RateLimitHandler):
             page += 1
             logger.debug("Page: %i" % (page))
             yield items["list"]
-            last_answer_id = items["last_answer_id"]           
+            last_answer_id = items["last_answer_id"]
             items = None
             payload['last_answer_id'] = last_answer_id
             response = self.fetch(self.base_url, payload=payload)
@@ -435,15 +455,5 @@ class SurveyqqCommand(BackendCommand):
                                    help="Gitee owner")
         parser.parser.add_argument('repository',
                                    help="Gitee repository")
+
         return parser
-
-# if __name__ == "__main__":
-#     survey = Surveyqq(owner="xxx", repository= "xxx", surveyid=xxx, appid="xxx",
-#                  api_token="xxx",
-#                  max_items=5,
-#                  tag=None, archive=None, ssl_verify=True)
-#     answers = [answer for answer in survey.fetch(offset=0)]
-#     issue1 = answers[0]
-#     with open('data.json', 'w', encoding='utf-8') as f:
-#         json.dump(answers, f, ensure_ascii=False, indent=4)
-
