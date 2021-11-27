@@ -45,6 +45,7 @@ CATEGORY_PULL_REQUEST = "pull_request"
 
 SURVEYQQ_URL = "https://open.wj.qq.com/api/surveys"
 GITEE_API_URL = "https://gitee.com/api/v5/repos"
+GITEE_URL = "https://gitee.com"
 
 
 # Range before sleeping until rate limit reset
@@ -99,7 +100,7 @@ class Surveyqq(Backend):
                  api_token=None, max_retries=MAX_RETRIES,
                  max_items=MAX_CATEGORY_ITEMS_PER_PAGE,
                  tag=None, archive=None, ssl_verify=True):
-        origin = urijoin(SURVEYQQ_URL, surveyid, "answers")
+        origin = urijoin(GITEE_URL, owner, repository)
         super().__init__(origin, tag=tag, archive=archive, ssl_verify=ssl_verify)
 
         self.owner = owner
@@ -107,7 +108,7 @@ class Surveyqq(Backend):
         self.surveyid = surveyid
         self.appid = appid
         self.api_token = api_token
-        self.base_url = origin
+        self.base_url = urijoin(SURVEYQQ_URL, surveyid, "answers")
         self.max_retries = max_retries
         self.max_items = max_items
 
@@ -277,9 +278,6 @@ class Surveyqq(Backend):
         else:
             item = super().metadata()
         return item
-
-    def set_origin(self, origin):
-        self._origin = origin
 
 
 class SurveyqqClient(HttpClient, RateLimitHandler):
